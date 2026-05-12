@@ -46,7 +46,7 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
               }
             />
             <Label htmlFor="captured" className="text-sm cursor-pointer">
-              Captured
+              ✓ Captured
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -58,7 +58,7 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
               }
             />
             <Label htmlFor="uncaptured" className="text-sm cursor-pointer">
-              Uncaptured
+              ◻ Uncaptured
             </Label>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
               onCheckedChange={() => onFilterChange('shiny', !filters.shiny)}
             />
             <Label htmlFor="shiny" className="text-sm cursor-pointer">
-              Shiny
+              ✨ Shiny
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -84,7 +84,7 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
               onCheckedChange={() => onFilterChange('alpha', !filters.alpha)}
             />
             <Label htmlFor="alpha" className="text-sm cursor-pointer">
-              Alpha
+              🔆 Alpha
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -115,7 +115,14 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
                   onFilterChange('types', newTypes)
                 }}
               />
-              <Label htmlFor={`type-${type}`} className="text-xs cursor-pointer">
+              <Label htmlFor={`type-${type}`} className="text-xs cursor-pointer flex items-center gap-1.5">
+                <img
+                  src={`/types/${type.toLowerCase()}.svg`}
+                  alt={type}
+                  width={16}
+                  height={16}
+                  className="flex-shrink-0"
+                />
                 {type}
               </Label>
             </div>

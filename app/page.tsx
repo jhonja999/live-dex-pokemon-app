@@ -11,7 +11,7 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-2xl px-4">
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-3 text-foreground">LiveDex</h1>
+          <h1 className="text-5xl font-bold mb-3 text-foreground">LiveDex - Jairus v0.1</h1>
           <p className="text-lg text-muted-foreground">
             Track, collect, and perfect your Pokémon
           </p>

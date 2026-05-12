@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation'
 import { fetchPokemonSpecies, fetchPokemonMoves } from '@/lib/pokeapi'
 import { usePokemonStore } from '@/store/pokemonStore'
 import { useGameStore } from '@/store/gameStore'
-import { PokemonSpecies, StatName } from '@/types/pokemon'
+import { PokemonSpecies, PokemonInstance, StatName } from '@/types/pokemon'
+import { v4 as uuidv4 } from 'uuid'
 import { TYPE_COLORS } from '@/lib/designTokens'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -59,15 +60,24 @@ export default function PokemonDetailPage() {
   const shinySpecies = usePokemonStore((s) => s.shinySpecies)
   const alphaSpecies = usePokemonStore((s) => s.alphaSpecies)
   const megaSpecies = usePokemonStore((s) => s.megaSpecies)
+  const capturedPokemon = usePokemonStore((s) => s.capturedPokemon)
   const toggleCaughtSpecies = usePokemonStore((s) => s.toggleCaughtSpecies)
   const toggleShiny = usePokemonStore((s) => s.toggleShiny)
   const toggleAlpha = usePokemonStore((s) => s.toggleAlpha)
   const toggleMega = usePokemonStore((s) => s.toggleMega)
+  const addPokemon = usePokemonStore((s) => s.addPokemon)
+  const removePokemon = usePokemonStore((s) => s.removePokemon)
 
   const [selectedNature, setSelectedNature] = useState('Hardy')
   const [ivs, setIvs] = useState<Record<StatName, number>>({
     hp: 0, atk: 0, def: 0, spAtk: 0, spDef: 0, spe: 0,
   })
+  const [newLevel, setNewLevel] = useState(50)
+  const [newIsShiny, setNewIsShiny] = useState(false)
+  const [newIsAlpha, setNewIsAlpha] = useState(false)
+  const [newIsMega, setNewIsMega] = useState(false)
+
+  const speciesCaptures = capturedPokemon.filter(p => p.speciesId === speciesId)
 
   useEffect(() => {
     let isMounted = true
@@ -138,7 +148,67 @@ export default function PokemonDetailPage() {
   const isMegaCaught = megaSpecies.includes(speciesId)
   const isArceus = currentGame === 'arceus'
 
-  const handleToggleCaught = () => toggleCaughtSpecies(speciesId)
+  const handleToggleCaught = () => {
+    if (isCaught) {
+      // Unmark: remove all captures + clear variants
+      speciesCaptures.forEach(c => removePokemon(c.id))
+      if (isShinyCaught) toggleShiny(speciesId)
+      if (isAlphaCaught) toggleAlpha(speciesId)
+      if (isMegaCaught) toggleMega(speciesId)
+      toggleCaughtSpecies(speciesId)
+    } else {
+      // Mark as caught: add default capture + toggle
+      addPokemon({
+        id: uuidv4(),
+        speciesId,
+        boxId: 'box-1',
+        level: 50,
+        isShiny: false,
+        gender: 'male' as const,
+        iv: { hp: 0, atk: 0, def: 0, spAtk: 0, spDef: 0, spe: 0 },
+        ev: { hp: 0, atk: 0, def: 0, spAtk: 0, spDef: 0, spe: 0 },
+        nature: 'Hardy',
+        ability: pokemon?.abilities[0] || 'Unknown',
+        moves: [],
+        capturedAt: Date.now(),
+        updatedAt: Date.now(),
+        isFavorite: false,
+      })
+      toggleCaughtSpecies(speciesId)
+    }
+  }
+
+  const handleRemoveCapture = (id: string) => {
+    removePokemon(id)
+    const remaining = capturedPokemon.filter(p => p.speciesId === speciesId && p.id !== id)
+    if (remaining.length === 0) {
+      toggleCaughtSpecies(speciesId)
+    }
+  }
+
+  const handleAddCapture = () => {
+    let form: string | undefined
+    if (newIsAlpha) form = 'alpha'
+    else if (newIsMega) form = 'mega'
+
+    addPokemon({
+      id: uuidv4(),
+      speciesId,
+      boxId: 'box-1',
+      level: newLevel,
+      isShiny: newIsShiny,
+      form,
+      gender: 'male' as const,
+      iv: { ...ivs },
+      ev: { hp: 0, atk: 0, def: 0, spAtk: 0, spDef: 0, spe: 0 },
+      nature: selectedNature,
+      ability: pokemon?.abilities[0] || 'Unknown',
+      moves: [],
+      capturedAt: Date.now(),
+      updatedAt: Date.now(),
+      isFavorite: false,
+    })
+  }
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
@@ -216,35 +286,36 @@ export default function PokemonDetailPage() {
             </label>
 
             {/* Shiny (both games) */}
-            {isCaught && (
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox
-                  checked={isShinyCaught}
-                  onCheckedChange={() => toggleShiny(speciesId)}
-                />
-                <span className="text-sm">✨ Shiny</span>
-              </label>
-            )}
+            <label className={`flex items-center gap-2 ${isCaught ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
+              <Checkbox
+                checked={isShinyCaught}
+                disabled={!isCaught}
+                onCheckedChange={() => toggleShiny(speciesId)}
+              />
+              <span className="text-sm">✨ Shiny{!isCaught && ' (mark as caught first)'}</span>
+            </label>
 
             {/* Alpha (Arceus only) */}
-            {isCaught && isArceus && (
-              <label className="flex items-center gap-2 cursor-pointer">
+            {isArceus && (
+              <label className={`flex items-center gap-2 ${isCaught ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
                 <Checkbox
                   checked={isAlphaCaught}
+                  disabled={!isCaught}
                   onCheckedChange={() => toggleAlpha(speciesId)}
                 />
-                <span className="text-sm">🔆 Alpha</span>
+                <span className="text-sm">🔆 Alpha{!isCaught && ' (mark as caught first)'}</span>
               </label>
             )}
 
             {/* Mega (Z-A only) */}
-            {isCaught && !isArceus && (
-              <label className="flex items-center gap-2 cursor-pointer">
+            {!isArceus && (
+              <label className={`flex items-center gap-2 ${isCaught ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
                 <Checkbox
                   checked={isMegaCaught}
+                  disabled={!isCaught}
                   onCheckedChange={() => toggleMega(speciesId)}
                 />
-                <span className="text-sm">💎 Mega</span>
+                <span className="text-sm">💎 Mega{!isCaught && ' (mark as caught first)'}</span>
               </label>
             )}
           </div>
@@ -257,6 +328,109 @@ export default function PokemonDetailPage() {
               {isMegaCaught && <Badge variant="outline" className="text-purple-500 border-purple-500">💎 Mega</Badge>}
             </div>
           )}
+        </div>
+
+        {/* Your Captures */}
+        <div className="mb-8 p-4 border border-border rounded-lg">
+          <h3 className="font-semibold text-foreground mb-4">📦 Your Captures ({speciesCaptures.length})</h3>
+
+          {/* Capture list */}
+          {speciesCaptures.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {speciesCaptures.map((cap) => (
+                <div key={cap.id} className="flex items-center justify-between p-2 rounded bg-secondary/10 border border-border/50">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-medium text-foreground">Lv.{cap.level}</span>
+                    <Badge variant="outline" className="text-[10px]">{cap.nature}</Badge>
+                    <div className="flex gap-0.5">
+                      {STAT_ORDER.map(s => (
+                        <span key={s} className={`font-mono w-5 text-center ${cap.iv[s] >= 31 ? 'text-green-400' : cap.iv[s] >= 20 ? 'text-yellow-400' : 'text-red-400'}`}>
+                          {cap.iv[s]}
+                        </span>
+                      ))}
+                    </div>
+                    {cap.isShiny && <span className="text-yellow-400">✨</span>}
+                    {cap.form === 'alpha' && <span className="text-orange-400">🔆</span>}
+                    {cap.form === 'mega' && <span className="text-purple-400">💎</span>}
+                  </div>
+                  <button
+                    onClick={() => handleRemoveCapture(cap.id)}
+                    className="text-muted-foreground hover:text-destructive text-xs ml-2"
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add new capture form */}
+          <div className="border-t border-border pt-4">
+            <p className="text-sm font-medium text-foreground mb-3">Add a capture</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Nature</Label>
+                <Select value={selectedNature} onValueChange={setSelectedNature}>
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ALL_NATURES.map(n => (
+                      <SelectItem key={n} value={n} className="text-xs">{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Level</Label>
+                <Input type="number" min={1} max={100} value={newLevel}
+                  onChange={e => setNewLevel(parseInt(e.target.value) || 1)}
+                  className="w-full h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* IVs row */}
+            <div className="mb-3">
+              <Label className="text-[10px] text-muted-foreground mb-1 block">IVs</Label>
+              <div className="grid grid-cols-6 gap-1">
+                {STAT_ORDER.map(stat => (
+                  <div key={stat}>
+                    <Label className="text-[8px] text-muted-foreground block text-center">{STAT_LABELS[stat]}</Label>
+                    <Input type="number" min={0} max={31} value={ivs[stat]}
+                      onChange={e => setIvs(prev => ({ ...prev, [stat]: Math.min(31, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                      className="w-full h-7 text-xs text-center"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Variant checkboxes */}
+            <div className="flex flex-wrap gap-3 mb-3">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <Checkbox checked={newIsShiny} onCheckedChange={(v) => setNewIsShiny(v === true)} />
+                <span className="text-xs">✨ Shiny</span>
+              </label>
+              {isArceus && (
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox checked={newIsAlpha} onCheckedChange={(v) => setNewIsAlpha(v === true)} />
+                  <span className="text-xs">🔆 Alpha</span>
+                </label>
+              )}
+              {!isArceus && (
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox checked={newIsMega} onCheckedChange={(v) => setNewIsMega(v === true)} />
+                  <span className="text-xs">💎 Mega</span>
+                </label>
+              )}
+            </div>
+
+            <Button onClick={handleAddCapture} size="sm" className="w-full">
+              + Add Capture
+            </Button>
+          </div>
         </div>
 
         {/* Nature & IV Reference */}
