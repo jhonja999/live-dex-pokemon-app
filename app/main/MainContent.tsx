@@ -13,6 +13,7 @@ import SortSelector from '@/components/filters/SortSelector'
 import { GameType } from '@/types/game'
 import { useSyncProgress } from '@/hooks/useSyncProgress'
 import { useGameStore } from '@/store/gameStore'
+import { getGameTheme } from '@/hooks/useGameTheme'
 
 export default function MainContent() {
   useSyncProgress()
@@ -20,17 +21,20 @@ export default function MainContent() {
   const gameParam = searchParams.get('game')
   const game = (gameParam === 'arceus' || gameParam === 'zeroA' ? gameParam : undefined) as GameType | undefined
   const [showSections, setShowSections] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const setCurrentGame = useGameStore((s) => s.setCurrentGame)
-  useEffect(() => { if (game) setCurrentGame(game) }, [game, setCurrentGame])
+  useEffect(() => { setMounted(true); if (game) setCurrentGame(game) }, [game, setCurrentGame])
 
   const { pokemon, isLoading, error, totalCount } = usePokemon(game)
   const { filters, setFilter } = useUIStore()
   const filtered = useFilters(pokemon, filters)
   const { totalCaptured, completionPercentage } = usePokemonProgress(totalCount)
+  const theme = getGameTheme(game)
+  const gameFont = game === 'arceus' ? 'font-serif' : 'font-mono'
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      <aside className="w-full lg:w-64 lg:flex-shrink-0">
+      <aside className="w-full lg:w-64 lg:shrink-0">
         <FilterSidebar filters={filters} onFilterChange={setFilter} />
       </aside>
 
@@ -46,8 +50,8 @@ export default function MainContent() {
 
           <div className="bg-secondary/50 border border-border rounded-lg p-3">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-semibold text-foreground">Living Dex Progress</span>
-              <span className="text-sm font-mono text-primary">{totalCaptured} / {totalCount || '...'}</span>
+              <span className={`text-sm font-semibold text-foreground ${gameFont}`}>Living Dex Progress</span>
+              <span className="text-sm font-mono text-primary">{mounted ? `${totalCaptured} / ${totalCount || '...'}` : '...'}</span>
             </div>
             <div className="w-full bg-secondary rounded-full h-2">
               <div
@@ -55,7 +59,7 @@ export default function MainContent() {
                 style={{ width: `${completionPercentage}%` }}
               />
             </div>
-            <p className="text-xs text-muted-foreground mt-2">{completionPercentage}% complete</p>
+            <p className={`text-xs text-muted-foreground mt-2 ${gameFont}`}>{completionPercentage}% complete</p>
           </div>
         </div>
 
@@ -67,10 +71,10 @@ export default function MainContent() {
 
         {game && !isLoading && !error && (
           <div className="flex items-center gap-3 px-4 mb-2">
-            <span className="text-sm font-semibold text-foreground">
+            <span className={`text-sm font-semibold text-foreground ${gameFont}`}>
               {game === 'arceus' ? 'Hisui Pokédex' : 'Kalos Pokédex'}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className={`text-xs text-muted-foreground ${gameFont}`}>
               {totalCaptured} / {pokemon.length} caught
             </span>
           </div>

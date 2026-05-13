@@ -54,8 +54,8 @@ export default function Home() {
                   <ArceusIcon />
                   <div>
                     <p className="text-[10px] font-serif uppercase tracking-[0.2em] text-[#8b5e34]/60">Hisui Region</p>
-                    <h2 className="text-xl font-serif font-bold text-[#4a3728] leading-tight">
-                      Pokémon Legends:<br />Arceus
+                    <h2 className="text-lg font-serif font-bold text-[#8b5e34] leading-tight whitespace-nowrap">
+                      Legends: Arceus
                     </h2>
                   </div>
                 </div>
@@ -66,15 +66,15 @@ export default function Home() {
 
                 <div className="space-y-2 text-xs text-[#4a3728]/70 font-serif">
                   <div className="flex items-center gap-2">
-                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 flex-shrink-0" />
+                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 shrink-0" />
                     Alpha Pokémon variants
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 flex-shrink-0" />
+                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 shrink-0" />
                     Shiny hunting tracker
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 flex-shrink-0" />
+                    <span className="w-1 h-1 rounded-full bg-[#8b5e34]/40 shrink-0" />
                     Perfect IV/EV registry
                   </div>
                 </div>
@@ -96,9 +96,9 @@ export default function Home() {
                 <div className="flex items-center gap-3 mb-6">
                   <ZeroAIcon />
                   <div>
-                    <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#00f2ff]/50">Lumiose City</p>
-                    <h2 className="text-xl font-mono font-black text-[#00f2ff] leading-tight tracking-[-0.02em]">
-                      Pokémon<br />Z-A
+                    <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#00f2ff]/50">Kalos Region</p>
+                    <h2 className="text-lg font-mono font-black text-[#00f2ff] leading-tight tracking-[0.05em] whitespace-nowrap">
+                      POKÉMON Z-A
                     </h2>
                   </div>
                 </div>
