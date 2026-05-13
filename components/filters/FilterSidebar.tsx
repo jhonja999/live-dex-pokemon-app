@@ -94,7 +94,7 @@ export default function FilterSidebar({ filters, onFilterChange }: FilterSidebar
               onCheckedChange={() => onFilterChange('favorite', !filters.favorite)}
             />
             <Label htmlFor="favorite" className="text-sm cursor-pointer">
-              Favorite
+              ★ Favorites
             </Label>
           </div>
         </div>

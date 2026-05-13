@@ -57,7 +57,7 @@ export function useSyncProgress() {
     return () => { mounted = false }
   }, [])
 
-  // Sync local changes to API periodically
+  // Sync local changes to API on every change (instant push)
   useEffect(() => {
     const current = caughtSpecies
     const prev = prevRef.current
@@ -70,13 +70,14 @@ export function useSyncProgress() {
       prevRef.current = [...current]
       pushProgress(current)
     }
+  }, [caughtSpecies])
 
-    if (!intervalRef.current) {
-      intervalRef.current = setInterval(() => {
-        const ids = usePokemonStore.getState().caughtSpecies
-        pushProgress(ids)
-      }, SYNC_INTERVAL)
-    }
+  // Periodic sync interval — set up once on mount, torn down on unmount
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      const ids = usePokemonStore.getState().caughtSpecies
+      pushProgress(ids)
+    }, SYNC_INTERVAL)
 
     return () => {
       if (intervalRef.current) {
@@ -84,5 +85,5 @@ export function useSyncProgress() {
         intervalRef.current = null
       }
     }
-  }, [caughtSpecies])
+  }, [])
 }

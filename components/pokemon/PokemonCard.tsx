@@ -3,23 +3,30 @@
 import { memo, useCallback } from 'react'
 import Link from 'next/link'
 import { PokemonSpecies } from '@/types/pokemon'
+import { GameType } from '@/types/game'
 import { usePokemonStore } from '@/store/pokemonStore'
 import { TYPE_COLORS } from '@/lib/designTokens'
 import { Badge } from '@/components/ui/badge'
 import { getRecommendedNature, getTypeEffectivenessSummary } from '@/data/natureRecommendations'
+import { getGameTheme } from '@/hooks/useGameTheme'
 
 interface PokemonCardProps {
   pokemon: PokemonSpecies
-  onClick?: () => void
+  game?: GameType
   tags?: string[]
 }
 
-function PokemonCardComponent({ pokemon, onClick, tags }: PokemonCardProps) {
+function PokemonCardComponent({ pokemon, game, tags }: PokemonCardProps) {
   const toggleCaughtSpecies = usePokemonStore((s) => s.toggleCaughtSpecies)
-  const isRevealed = usePokemonStore((s) => s.caughtSpecies.includes(pokemon.id))
+  const toggleFavorite = usePokemonStore((s) => s.toggleFavorite)
+  const isCaught = usePokemonStore((s) => s.caughtSpecies.includes(pokemon.id))
   const isShiny = usePokemonStore((s) => s.shinySpecies.includes(pokemon.id))
   const isAlpha = usePokemonStore((s) => s.alphaSpecies.includes(pokemon.id))
   const isMega = usePokemonStore((s) => s.megaSpecies.includes(pokemon.id))
+  const isFavorite = usePokemonStore((s) => s.favoriteSpecies.includes(pokemon.id))
+
+  const theme = getGameTheme(game)
+  const slot = theme.card
   const type1Color = TYPE_COLORS[pokemon.type1]
   const type2Color = pokemon.type2 ? TYPE_COLORS[pokemon.type2] : null
 
@@ -29,122 +36,98 @@ function PokemonCardComponent({ pokemon, onClick, tags }: PokemonCardProps) {
     toggleCaughtSpecies(pokemon.id)
   }, [pokemon.id, toggleCaughtSpecies])
 
-  if (!isRevealed) {
+  const handleFavoriteClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    toggleFavorite(pokemon.id)
+  }, [pokemon.id, toggleFavorite])
+
+  // --- Uncaught state: preview with nature + type info ---
+  if (!isCaught) {
     const nature = getRecommendedNature(pokemon)
     const typeEffectiveness = getTypeEffectivenessSummary(pokemon)
 
     return (
       <div
         onDoubleClick={handleDoubleClick}
-        className="border border-dashed border-border/50 rounded-lg p-4 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer h-full flex flex-col select-none"
+        className={`${slot.wrapper} relative overflow-hidden flex flex-col cursor-pointer select-none`}
       >
-        {/* Silhouette Sprite */}
-        <div className="flex justify-center mb-4 h-32 bg-secondary/5 rounded-md flex-shrink-0 relative overflow-hidden">
-          <img
-            src={pokemon.icon}
-            alt=""
-            className="object-contain opacity-20 grayscale brightness-0 invert"
-            draggable={false}
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-3xl text-muted-foreground/30 font-bold">?</span>
+        {/* Favorite star */}
+        <button
+          onClick={handleFavoriteClick}
+          className={`absolute top-0.5 left-0.5 z-20 text-sm transition-opacity ${isFavorite ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+        >
+          {isFavorite ? '★' : '☆'}
+        </button>
+
+        {/* Silhouette */}
+        <div className="flex-1 flex items-center justify-center p-1.5 overflow-hidden">
+          <div className={`${slot.imageContainer} opacity-40`}>
+            <img
+              src={pokemon.icon}
+              alt=""
+              className="object-contain max-h-full max-w-full grayscale brightness-0 invert"
+              draggable={false}
+            />
           </div>
+          <span className="absolute text-2xl font-bold text-foreground/10 select-none">?</span>
         </div>
 
-        {/* ID & Hidden Name */}
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground/50">#{pokemon.id.toString().padStart(3, '0')}</p>
-          <h3 className="font-bold text-foreground/40 truncate">???</h3>
-        </div>
+        {/* Label strip */}
+        <div className={slot.label}>??? #{pokemon.id.toString().padStart(3, '0')}</div>
 
-        {/* Type badges dimmed */}
-        <div className="flex gap-2 mb-3 flex-wrap">
-          <Badge variant="secondary" className="bg-secondary/20 text-muted-foreground/40 border-border/20">
-            ???
-          </Badge>
-          {pokemon.type2 && (
-            <Badge variant="secondary" className="bg-secondary/20 text-muted-foreground/40 border-border/20">
+        {/* Info preview */}
+        <div className="px-1.5 py-1 space-y-1 text-[9px]">
+          {/* Type badges dimmed */}
+          <div className="flex gap-1">
+            <Badge variant="secondary" className="bg-secondary/20 text-muted-foreground/40 border-border/20 text-[8px] h-4 px-1.5">
               ???
             </Badge>
-          )}
-        </div>
-
-        {/* Tags */}
-        {tags && tags.length > 0 && (
-          <div className="flex gap-1 mb-3 flex-wrap">
-            {tags.map(tag => (
-              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary/20 text-muted-foreground/40">
-                {tag}
-              </span>
-            ))}
+            {pokemon.type2 && (
+              <Badge variant="secondary" className="bg-secondary/20 text-muted-foreground/40 border-border/20 text-[8px] h-4 px-1.5">
+                ???
+              </Badge>
+            )}
           </div>
-        )}
 
-        {/* Capture Info */}
-        <div className="mt-auto space-y-1.5 text-xs">
           {/* Best Nature */}
-          <div className="bg-secondary/10 rounded px-2 py-1.5">
-            <span className="text-muted-foreground/60 text-[10px] uppercase tracking-wide font-semibold">Best Nature</span>
-            <div className="text-foreground/70 font-medium">{nature.label}</div>
-            <div className="text-muted-foreground/50 text-[10px]">{nature.reasoning}</div>
+          <div className="text-muted-foreground/50 leading-tight">
+            <span className="font-semibold text-muted-foreground/60">{nature.label}</span>
           </div>
 
-          {/* Type Matchups */}
-          <div className="space-y-1.5">
+          {/* Type matchups */}
+          <div className="flex items-center gap-1.5">
             {typeEffectiveness.strong.length > 0 && (
-              <div>
-                <span className="text-[10px] text-green-500/60 font-semibold">Strong vs</span>
-                <div className="flex gap-1 flex-wrap mt-0.5">
-                  {typeEffectiveness.strong.slice(0, 5).map(t => (
-                    <span
-                      key={t}
-                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-sm"
-                      style={{
-                        backgroundColor: (TYPE_COLORS[t]?.bg || '#888') + '50',
-                      }}
-                      title={t}
-                    >
-                      <img
-                        src={`/types/${t.toLowerCase()}.svg`}
-                        alt={t}
-                        width={12}
-                        height={12}
-                        className="flex-shrink-0"
-                      />
-                    </span>
-                  ))}
-                </div>
+              <div className="flex items-center gap-0.5">
+                <span className="text-[7px] text-green-500/60">+</span>
+                {typeEffectiveness.strong.slice(0, 3).map(t => (
+                  <img key={t} src={`/types/${t.toLowerCase()}.svg`} alt={t} title={t} width={10} height={10} className="opacity-60" />
+                ))}
               </div>
             )}
             {typeEffectiveness.weak.length > 0 && (
-              <div>
-                <span className="text-[10px] text-red-400/60 font-semibold">Weak to</span>
-                <div className="flex gap-1 flex-wrap mt-0.5">
-                  {typeEffectiveness.weak.slice(0, 5).map(t => (
-                    <span
-                      key={t}
-                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-sm"
-                      style={{
-                        backgroundColor: (TYPE_COLORS[t]?.bg || '#888') + '50',
-                      }}
-                      title={t}
-                    >
-                      <img
-                        src={`/types/${t.toLowerCase()}.svg`}
-                        alt={t}
-                        width={12}
-                        height={12}
-                        className="flex-shrink-0"
-                      />
-                    </span>
-                  ))}
-                </div>
+              <div className="flex items-center gap-0.5">
+                <span className="text-[7px] text-red-400/60">-</span>
+                {typeEffectiveness.weak.slice(0, 3).map(t => (
+                  <img key={t} src={`/types/${t.toLowerCase()}.svg`} alt={t} title={t} width={10} height={10} className="opacity-60" />
+                ))}
               </div>
             )}
           </div>
 
+          {/* Tags */}
+          {tags && tags.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {tags.map(tag => (
+                <span key={tag} className="text-[7px] px-1 py-0.5 rounded bg-secondary/20 text-muted-foreground/40">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Hint */}
-          <div className="text-[10px] text-muted-foreground/30 text-center pt-1">
+          <div className="text-[7px] text-muted-foreground/20 text-center pt-0.5 leading-none">
             Double-click to reveal
           </div>
         </div>
@@ -152,96 +135,91 @@ function PokemonCardComponent({ pokemon, onClick, tags }: PokemonCardProps) {
     )
   }
 
-  const revealedContent = (
+  // --- Caught state: full reveal with stats ---
+  const content = (
     <div
       onDoubleClick={handleDoubleClick}
-      className={`border rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer h-full flex flex-col ${
-        isRevealed
-          ? 'border-primary bg-primary/5'
-          : 'border-border bg-surface hover:border-primary'
-      }`}
+      className={`${slot.wrapper} relative overflow-hidden flex flex-col cursor-pointer`}
     >
-      {/* Captured Badge */}
-      <div className="flex items-center justify-between mb-2">
-        <Badge className="bg-primary text-primary-foreground">
-          ✓ Captured
-        </Badge>
-        <div className="flex gap-1">
-          {isShiny && <span className="text-yellow-400 text-xs" title="Shiny caught">✨</span>}
-          {isAlpha && <span className="text-orange-400 text-xs" title="Alpha caught">🔆</span>}
-          {isMega && <span className="text-purple-400 text-xs" title="Mega caught">💎</span>}
-        </div>
+      {/* Favorite star */}
+        <button
+          onClick={handleFavoriteClick}
+          className={`absolute top-0.5 left-0.5 z-20 text-sm transition-opacity ${isFavorite ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+        >
+          {isFavorite ? '★' : '☆'}
+        </button>
+
+        {/* Variant indicators */}
+      <div className="absolute top-0.5 right-0.5 z-20 flex gap-0.5">
+        {isShiny && <span className="text-yellow-400 text-[10px]" title="Shiny">✨</span>}
+        {isAlpha && <span className="text-orange-400 text-[10px]" title="Alpha">🔆</span>}
+        {isMega && <span className="text-purple-400 text-[10px]" title="Mega">💎</span>}
       </div>
 
       {/* Sprite */}
-      <div className="flex justify-center mb-4 h-32 bg-secondary/10 rounded-md flex-shrink-0">
-        <img
-          src={pokemon.icon}
-          alt={pokemon.name}
-          className="object-contain"
-          draggable={false}
-          onError={(e) => {
-            ;(e.target as HTMLImageElement).style.display = 'none'
-          }}
-        />
+      <div className="flex-1 flex items-center justify-center p-1.5 overflow-hidden">
+        <div className={slot.imageContainer}>
+          <img
+            src={pokemon.artwork || pokemon.icon}
+            alt={pokemon.name}
+            className="object-contain max-h-full max-w-full"
+            draggable={false}
+            onError={(e) => {
+              ;(e.target as HTMLImageElement).style.display = 'none'
+            }}
+          />
+        </div>
       </div>
 
-      {/* Name & ID */}
-      <div className="mb-3">
-        <p className="text-xs text-muted-foreground">#{pokemon.id.toString().padStart(3, '0')}</p>
-        <h3 className="font-bold text-foreground truncate">{pokemon.name}</h3>
-      </div>
+      {/* Label strip */}
+      <div className={slot.label}>{pokemon.name}</div>
 
-      {/* Types */}
-      <div className="flex gap-2 mb-3 flex-wrap">
-        <Badge
-          variant="secondary"
-          className="flex items-center gap-1"
-          style={{
-            backgroundColor: type1Color?.bg,
-            color: type1Color?.text,
-            border: `1px solid ${type1Color?.border}`,
-          }}
-        >
-          <img src={`/types/${pokemon.type1.toLowerCase()}.svg`} alt="" width={14} height={14} className="flex-shrink-0" />
-          {pokemon.type1}
-        </Badge>
-        {pokemon.type2 && type2Color && (
+      {/* Stats + Types */}
+      <div className="px-1.5 py-1 space-y-1 text-[9px]">
+        {/* Type badges */}
+        <div className="flex gap-1">
           <Badge
-            variant="secondary"
-            className="flex items-center gap-1"
+            className="h-4 px-1.5 text-[8px] flex items-center gap-0.5"
             style={{
-              backgroundColor: type2Color.bg,
-              color: type2Color.text,
-              border: `1px solid ${type2Color.border}`,
+              backgroundColor: type1Color?.bg,
+              color: type1Color?.text,
+              border: `1px solid ${type1Color?.border}`,
             }}
           >
-            <img src={`/types/${pokemon.type2.toLowerCase()}.svg`} alt="" width={14} height={14} className="flex-shrink-0" />
-            {pokemon.type2}
+            <img src={`/types/${pokemon.type1.toLowerCase()}.svg`} alt="" width={9} height={9} />
+            <span>{pokemon.type1}</span>
           </Badge>
+          {pokemon.type2 && type2Color && (
+            <Badge
+              className="h-4 px-1.5 text-[8px] flex items-center gap-0.5"
+              style={{
+                backgroundColor: type2Color.bg,
+                color: type2Color.text,
+                border: `1px solid ${type2Color.border}`,
+              }}
+            >
+              <img src={`/types/${pokemon.type2.toLowerCase()}.svg`} alt="" width={9} height={9} />
+              <span>{pokemon.type2}</span>
+            </Badge>
+          )}
+        </div>
+
+        {/* Tags */}
+        {tags && tags.length > 0 && (
+          <div className="flex gap-1 flex-wrap">
+            {tags.map(tag => (
+              <span key={tag} className="text-[7px] px-1 py-0.5 rounded bg-secondary/50 text-muted-foreground">
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
-      </div>
 
-      {/* Tags */}
-      {tags && tags.length > 0 && (
-        <div className="flex gap-1 mb-3 flex-wrap">
-          {tags.map(tag => (
-            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary/50 text-muted-foreground">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Stats Summary */}
-      <div className="text-xs text-muted-foreground space-y-1 mt-auto">
-        <div className="flex justify-between">
-          <span>HP</span>
-          <span className="font-mono">{pokemon.hp}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Atk/Sp</span>
-          <span className="font-mono">{pokemon.attack}/{pokemon.spAtk}</span>
+        {/* Stats summary */}
+        <div className="flex gap-2 text-muted-foreground font-mono">
+          <span>HP {pokemon.hp}</span>
+          <span>Atk {pokemon.attack}</span>
+          <span>Sp {pokemon.spAtk}</span>
         </div>
       </div>
     </div>
@@ -249,7 +227,7 @@ function PokemonCardComponent({ pokemon, onClick, tags }: PokemonCardProps) {
 
   return (
     <Link href={`/${pokemon.id}`}>
-      {revealedContent}
+      {content}
     </Link>
   )
 }

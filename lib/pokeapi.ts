@@ -1,4 +1,4 @@
-import { PokemonSpecies, Nature, PokemonForm, EvYield } from '@/types/pokemon'
+import { PokemonSpecies, Nature, EvYield } from '@/types/pokemon'
 
 const POKEAPI_BASE = 'https://pokeapi.co/api/v2'
 const DB_NAME = 'PokemonDB'
@@ -6,6 +6,40 @@ const DB_VERSION = 1
 const POKEMON_STORE = 'pokemon'
 const NATURES_STORE = 'natures'
 const METADATA_STORE = 'metadata'
+const FETCH_TIMEOUT = 12000
+const DEX_FETCH_TIMEOUT = 10000
+const SPECIES_FETCH_TIMEOUT = 10000
+const RETRY_DELAY = 2000
+
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = FETCH_TIMEOUT): Promise<Response> {
+  const { signal: externalSignal, ...rest } = options
+  const controller = new AbortController()
+  let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    timeoutId = null
+    controller.abort()
+  }, timeoutMs)
+
+  const cleanup = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+  }
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      cleanup()
+      controller.abort()
+    } else {
+      externalSignal.addEventListener('abort', () => {
+        cleanup()
+        controller.abort()
+      }, { once: true })
+    }
+  }
+
+  return fetch(url, { ...rest, signal: controller.signal }).finally(cleanup)
+}
 
 // IndexedDB Management
 function openDB(): Promise<IDBDatabase> {
@@ -112,19 +146,30 @@ async function saveMetadata(key: string, value: any): Promise<void> {
  * Fetch detailed Pokémon species data from PokeAPI
  * Includes stats, abilities, forms, and all metadata
  */
-export async function fetchPokemonSpecies(id: number): Promise<PokemonSpecies | null> {
+export async function fetchPokemonSpecies(
+  id: number,
+  signal?: AbortSignal
+): Promise<PokemonSpecies | null> {
   // Try cache first
   const cached = await getPokemonFromCache(id)
   if (cached) return cached
 
   try {
-    const response = await fetch(`${POKEAPI_BASE}/pokemon-species/${id}`)
+    const response = await fetchWithTimeout(
+      `${POKEAPI_BASE}/pokemon-species/${id}`,
+      { signal },
+      SPECIES_FETCH_TIMEOUT
+    )
     if (!response.ok) return null
 
     const speciesData = await response.json()
 
     // Also fetch the pokemon endpoint for additional stats
-    const pokemonResponse = await fetch(`${POKEAPI_BASE}/pokemon/${id}`)
+    const pokemonResponse = await fetchWithTimeout(
+      `${POKEAPI_BASE}/pokemon/${id}`,
+      { signal },
+      SPECIES_FETCH_TIMEOUT
+    )
     if (!pokemonResponse.ok) return null
 
     const pokemonData = await pokemonResponse.json()
@@ -172,7 +217,9 @@ export async function fetchPokemonSpecies(id: number): Promise<PokemonSpecies | 
     await savePokemonToCache(pokemon)
     return pokemon
   } catch (error) {
-    console.error(`Failed to fetch Pokemon #${id}:`, error)
+    if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      console.error(`Failed to fetch Pokemon #${id}:`, error)
+    }
     return null
   }
 }
@@ -183,7 +230,9 @@ export async function fetchPokemonSpecies(id: number): Promise<PokemonSpecies | 
  */
 export async function fetchAllPokemon(
   forceRefresh = false,
-  onProgress?: (count: number) => void
+  onProgress?: (count: number) => void,
+  onBatch?: (pokemon: PokemonSpecies[]) => void,
+  signal?: AbortSignal
 ): Promise<PokemonSpecies[]> {
   // Check if we have cached data
   const cachedPokemon = await getAllPokemonFromCache()
@@ -202,8 +251,9 @@ export async function fetchAllPokemon(
 
   try {
     while (hasMore) {
-      const response = await fetch(
-        `${POKEAPI_BASE}/pokemon?limit=${limit}&offset=${offset}`
+      const response = await fetchWithTimeout(
+        `${POKEAPI_BASE}/pokemon?limit=${limit}&offset=${offset}`,
+        { signal }
       )
       if (!response.ok) break
 
@@ -224,7 +274,7 @@ export async function fetchAllPokemon(
       for (let i = 0; i < urls.length; i += batchSize) {
         const batch = urls.slice(i, i + batchSize)
         const results = await Promise.all(
-          batch.map(item => fetchPokemonSpecies(item.id))
+          batch.map(item => fetchPokemonSpecies(item.id, signal))
         )
         for (const pokemon of results) {
           if (pokemon) {
@@ -232,6 +282,7 @@ export async function fetchAllPokemon(
           }
         }
         onProgress?.(allPokemon.length)
+        onBatch?.(results.filter(Boolean) as PokemonSpecies[])
       }
 
       offset += limit
@@ -245,7 +296,11 @@ export async function fetchAllPokemon(
     
     return allPokemon
   } catch (error) {
-    console.error('Failed to fetch all Pokemon:', error)
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.warn(`Fetch aborted, returning ${allPokemon.length} Pokemon (${cachedPokemon.length} cached)`)
+    } else {
+      console.error('Failed to fetch all Pokemon:', error)
+    }
     return allPokemon.length > 0 ? allPokemon : cachedPokemon
   }
 }
@@ -253,9 +308,12 @@ export async function fetchAllPokemon(
 /**
  * Fetch all Natures from PokeAPI
  */
-export async function fetchNatures(): Promise<Nature[]> {
+export async function fetchNatures(signal?: AbortSignal): Promise<Nature[]> {
   try {
-    const response = await fetch(`${POKEAPI_BASE}/nature?limit=25`)
+    const response = await fetchWithTimeout(
+      `${POKEAPI_BASE}/nature?limit=25`,
+      { signal }
+    )
     if (!response.ok) return []
 
     const data = await response.json()
@@ -267,51 +325,22 @@ export async function fetchNatures(): Promise<Nature[]> {
 
     return natures
   } catch (error) {
-    console.error('Failed to fetch natures:', error)
-    return getDefaultNatures()
-  }
-}
-
-/**
- * Get detailed nature info
- */
-export async function fetchNatureDetails(name: string): Promise<Nature | null> {
-  try {
-    const response = await fetch(`${POKEAPI_BASE}/nature/${name.toLowerCase()}`)
-    if (!response.ok) return null
-
-    const data = await response.json()
-    return {
-      name: data.name.charAt(0).toUpperCase() + data.name.slice(1),
-      increasedStat: data.increased_stat?.name as any,
-      decreasedStat: data.decreased_stat?.name as any,
+    if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      console.error('Failed to fetch natures:', error)
     }
-  } catch (error) {
-    console.error(`Failed to fetch nature ${name}:`, error)
-    return null
-  }
-}
-
-/**
- * Fetch move data from PokeAPI
- */
-export async function fetchMove(id: number | string) {
-  try {
-    const response = await fetch(`${POKEAPI_BASE}/move/${id}`)
-    if (!response.ok) return null
-    return await response.json()
-  } catch (error) {
-    console.error('Failed to fetch move:', error)
-    return null
+    return getDefaultNatures()
   }
 }
 
 /**
  * Fetch Pokémon moves by level
  */
-export async function fetchPokemonMoves(pokemonId: number) {
+export async function fetchPokemonMoves(pokemonId: number, signal?: AbortSignal) {
   try {
-    const response = await fetch(`${POKEAPI_BASE}/pokemon/${pokemonId}`)
+    const response = await fetchWithTimeout(
+      `${POKEAPI_BASE}/pokemon/${pokemonId}`,
+      { signal }
+    )
     if (!response.ok) return []
 
     const data = await response.json()
@@ -327,110 +356,80 @@ export async function fetchPokemonMoves(pokemonId: number) {
     // Sort by level learned
     return moves.sort((a: any, b: any) => a.level - b.level)
   } catch (error) {
-    console.error(`Failed to fetch moves for Pokemon #${pokemonId}:`, error)
-    return []
-  }
-}
-
-/**
- * Get best moves for a Pokémon (highest power moves that can be learned)
- */
-export async function getPokemonBestMoves(pokemonId: number): Promise<any[]> {
-  try {
-    const moves = await fetchPokemonMoves(pokemonId)
-    if (moves.length === 0) return []
-
-    // Group by level and get latest moves for each level
-    const bestMoves = []
-    const seenNames = new Set<string>()
-
-    for (const move of moves) {
-      if (!seenNames.has(move.name)) {
-        bestMoves.push(move)
-        seenNames.add(move.name)
-      }
+    if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      console.error(`Failed to fetch moves for Pokemon #${pokemonId}:`, error)
     }
-
-    return bestMoves.slice(0, 12) // Return up to 12 best moves
-  } catch (error) {
-    console.error('Failed to get best moves:', error)
     return []
   }
 }
 
 /**
- * Fetch type effectiveness data
+ * Fetch a single Pokédex by PokeAPI ID.
+ * Uses the proven original await pattern.
  */
-export async function fetchTypeChart(type: string) {
+async function fetchSingleDex(
+  pokedexId: number,
+  signal?: AbortSignal
+): Promise<{ speciesId: number; dexNumber: number }[]> {
   try {
-    const response = await fetch(`${POKEAPI_BASE}/type/${type.toLowerCase()}`)
-    if (!response.ok) return null
+    const response = await fetchWithTimeout(
+      `${POKEAPI_BASE}/pokedex/${pokedexId}`,
+      { signal },
+      DEX_FETCH_TIMEOUT
+    )
+    if (!response.ok) return []
 
     const data = await response.json()
-    return {
-      weaknesses: data.damage_relations?.take_damage_from || [],
-      resistances: data.damage_relations?.take_damage_half || [],
-      immunities: data.damage_relations?.take_no_damage_from || [],
+    return (data.pokemon_entries || []).map((entry: any) => {
+      const match = entry.pokemon_species?.url?.match(/\/pokemon-species\/(\d+)\//)
+      return {
+        speciesId: match ? parseInt(match[1]) : 0,
+        dexNumber: entry.entry_number,
+      }
+    }).filter((e: { speciesId: number }) => e.speciesId > 0)
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      console.warn(`Failed to fetch Pokedex #${pokedexId}:`, error)
     }
-  } catch (error) {
-    console.error('Failed to fetch type chart:', error)
-    return null
-  }
-}
-
-/**
- * Fetch evolution chain for a Pokémon
- */
-export async function fetchEvolutionChain(speciesId: number) {
-  try {
-    const speciesResponse = await fetch(`${POKEAPI_BASE}/pokemon-species/${speciesId}`)
-    if (!speciesResponse.ok) return null
-
-    const speciesData = await speciesResponse.json()
-    const evolutionChainUrl = speciesData.evolution_chain?.url
-
-    if (!evolutionChainUrl) return null
-
-    const chainResponse = await fetch(evolutionChainUrl)
-    if (!chainResponse.ok) return null
-
-    return await chainResponse.json()
-  } catch (error) {
-    console.error('Failed to fetch evolution chain:', error)
-    return null
+    return []
   }
 }
 
 /**
  * Fetch game-specific Pokédex from PokeAPI to get correct ordering
+ * Uses original proven fetch pattern (not Promise chaining).
  * @returns Array of { speciesId, dexNumber } in game dex order
  */
 export async function fetchGameDex(
-  game: 'arceus' | 'zeroA'
+  game: 'arceus' | 'zeroA',
+  signal?: AbortSignal
 ): Promise<{ speciesId: number; dexNumber: number }[]> {
-  const POKEDEX_IDS: Record<string, number> = {
-    arceus: 26,
-    zeroA: 12,
+  const DEX_IDS: Record<string, number[]> = {
+    arceus: [30],        // Hisui Pokédex
+    zeroA: [12, 13, 14], // Kalos Central + Coastal + Mountain
   }
 
-  const pokedexId = POKEDEX_IDS[game]
-  if (!pokedexId) return []
+  const ids = DEX_IDS[game]
+  if (!ids || ids.length === 0) return []
 
-  try {
-    const response = await fetch(`${POKEAPI_BASE}/pokedex/${pokedexId}`)
-    if (!response.ok) return []
+  const results = await Promise.all(ids.map(id => fetchSingleDex(id, signal)))
 
-    const data = await response.json()
-    return data.pokemon_entries.map((entry: any) => ({
-      speciesId: entry.pokemon_species.url.match(/\/pokemon-species\/(\d+)\//)?.[1]
-        ? parseInt(entry.pokemon_species.url.match(/\/pokemon-species\/(\d+)\//)[1])
-        : 0,
-      dexNumber: entry.entry_number,
-    })).filter((e: { speciesId: number }) => e.speciesId > 0)
-  } catch (error) {
-    console.warn(`Failed to fetch ${game} dex from PokeAPI:`, error)
-    return []
+  // Combine with offset for sequential ordering
+  const seen = new Set<number>()
+  const all: { speciesId: number; dexNumber: number }[] = []
+  let offset = 0
+
+  for (const entries of results) {
+    for (const e of entries) {
+      if (!seen.has(e.speciesId)) {
+        seen.add(e.speciesId)
+        all.push({ speciesId: e.speciesId, dexNumber: offset + e.dexNumber })
+      }
+    }
+    offset += entries.length
   }
+
+  return all
 }
 
 /**

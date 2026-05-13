@@ -2,27 +2,17 @@
 
 import { memo } from 'react'
 
-function PokemonSkeletonComponent() {
+interface PokemonSkeletonProps {
+  colorClass?: string
+}
+
+function PokemonSkeletonComponent({ colorClass = 'bg-secondary/20' }: PokemonSkeletonProps) {
   return (
-    <div className="border border-border rounded-lg p-4 bg-surface animate-pulse">
-      {/* Sprite skeleton */}
-      <div className="w-full h-32 bg-secondary/20 rounded-md mb-4" />
-
-      {/* Name skeleton */}
-      <div className="h-4 bg-secondary/20 rounded w-3/4 mb-2" />
-      <div className="h-3 bg-secondary/20 rounded w-1/2 mb-3" />
-
-      {/* Types skeleton */}
-      <div className="flex gap-2 mb-3">
-        <div className="h-6 bg-secondary/20 rounded w-16" />
-        <div className="h-6 bg-secondary/20 rounded w-16" />
+    <div className="aspect-[4/5] border border-border/30 rounded-lg overflow-hidden bg-surface animate-pulse flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className={`w-full h-full rounded-md ${colorClass}`} />
       </div>
-
-      {/* Stats skeleton */}
-      <div className="space-y-1">
-        <div className="h-3 bg-secondary/20 rounded w-full" />
-        <div className="h-3 bg-secondary/20 rounded w-5/6" />
-      </div>
+      <div className={`h-5 ${colorClass} w-full flex-shrink-0`} />
     </div>
   )
 }
@@ -31,7 +21,7 @@ export default memo(PokemonSkeletonComponent)
 
 export function PokemonGridSkeleton() {
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+    <div className="grid grid-cols-3 gap-1.5 p-2">
       {Array.from({ length: 12 }).map((_, i) => (
         <PokemonSkeletonComponent key={i} />
       ))}

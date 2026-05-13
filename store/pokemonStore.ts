@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { PokemonInstance } from '@/types/pokemon'
 import { BoxStorage } from '@/types/box'
+import { loadFromIDB, saveToIDB } from '@/lib/idbStorage'
 
 interface PokemonStore {
   // Captured Pokémon
@@ -32,6 +33,10 @@ interface PokemonStore {
   updateBox: (id: string, updates: Partial<BoxStorage>) => void
   deleteBox: (id: string) => void
   movePokemonToBox: (pokemonId: string, fromBoxId: string, toBoxId: string) => void
+
+  // Species favorites
+  favoriteSpecies: number[]
+  toggleFavorite: (speciesId: number) => void
 
   // Selection/Favorites
   favoriteBoxId: string | null
@@ -155,9 +160,45 @@ export const usePokemonStore = create<PokemonStore>((set, get) => ({
       }),
     })),
 
+  // Species favorites
+  favoriteSpecies: typeof window !== 'undefined'
+    ? JSON.parse(localStorage.getItem('livedex_favorites') || '[]')
+    : [],
+  toggleFavorite: (speciesId) =>
+    set((state) => {
+      const next = state.favoriteSpecies.includes(speciesId)
+        ? state.favoriteSpecies.filter((id) => id !== speciesId)
+        : [...state.favoriteSpecies, speciesId]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('livedex_favorites', JSON.stringify(next))
+      }
+      return { favoriteSpecies: next }
+    }),
+
   // Selection/Favorites
   favoriteBoxId: null,
   setFavoriteBox: (boxId) => set({ favoriteBoxId: boxId }),
   selectedPokemonId: null,
   setSelectedPokemon: (id) => set({ selectedPokemonId: id }),
 }))
+
+// --- Auto-persist capturedPokemon & boxes to IndexedDB ---
+if (typeof window !== 'undefined') {
+  let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+  loadFromIDB<PokemonInstance[]>('capturedPokemon').then(captured => {
+    if (captured?.length) usePokemonStore.getState().setCapturedPokemon(captured)
+  })
+  loadFromIDB<BoxStorage[]>('boxes').then(boxes => {
+    if (boxes?.length) usePokemonStore.getState().setBoxes(boxes)
+  })
+
+  usePokemonStore.subscribe((state) => {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => {
+      persistTimer = null
+      saveToIDB('capturedPokemon', state.capturedPokemon)
+      saveToIDB('boxes', state.boxes)
+    }, 150)
+  })
+}

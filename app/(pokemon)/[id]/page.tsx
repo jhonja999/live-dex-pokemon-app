@@ -60,11 +60,13 @@ export default function PokemonDetailPage() {
   const shinySpecies = usePokemonStore((s) => s.shinySpecies)
   const alphaSpecies = usePokemonStore((s) => s.alphaSpecies)
   const megaSpecies = usePokemonStore((s) => s.megaSpecies)
+  const favoriteSpecies = usePokemonStore((s) => s.favoriteSpecies)
   const capturedPokemon = usePokemonStore((s) => s.capturedPokemon)
   const toggleCaughtSpecies = usePokemonStore((s) => s.toggleCaughtSpecies)
   const toggleShiny = usePokemonStore((s) => s.toggleShiny)
   const toggleAlpha = usePokemonStore((s) => s.toggleAlpha)
   const toggleMega = usePokemonStore((s) => s.toggleMega)
+  const toggleFavorite = usePokemonStore((s) => s.toggleFavorite)
   const addPokemon = usePokemonStore((s) => s.addPokemon)
   const removePokemon = usePokemonStore((s) => s.removePokemon)
 
@@ -76,8 +78,6 @@ export default function PokemonDetailPage() {
   const [newIsShiny, setNewIsShiny] = useState(false)
   const [newIsAlpha, setNewIsAlpha] = useState(false)
   const [newIsMega, setNewIsMega] = useState(false)
-
-  const speciesCaptures = capturedPokemon.filter(p => p.speciesId === speciesId)
 
   useEffect(() => {
     let isMounted = true
@@ -116,12 +116,90 @@ export default function PokemonDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <div className="space-y-3">
-          <div className="inline-block animate-spin">
-            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      <div className="max-w-4xl mx-auto pb-12 animate-pulse">
+        <div className="mb-6 h-4 w-24 bg-secondary/30 rounded" />
+
+        <div className="bg-surface border border-border rounded-lg p-8 space-y-6">
+          {/* Header skeleton */}
+          <div className="flex items-start justify-between mb-6">
+            <div className="space-y-3">
+              <div className="h-3 w-16 bg-secondary/30 rounded" />
+              <div className="h-8 w-48 bg-secondary/30 rounded" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-7 w-16 bg-secondary/30 rounded-full" />
+              <div className="h-7 w-16 bg-secondary/30 rounded-full" />
+            </div>
           </div>
-          <p className="text-muted-foreground">Loading Pokémon details...</p>
+
+          {/* Artwork skeleton */}
+          <div className="h-64 bg-secondary/10 rounded-lg mb-8" />
+
+          {/* Stats grid skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="border border-border rounded-lg p-4">
+                <div className="h-3 w-8 bg-secondary/30 rounded mb-2" />
+                <div className="h-7 w-12 bg-secondary/30 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Status skeleton */}
+          <div className="p-4 border border-border rounded-lg bg-secondary/5 space-y-3">
+            <div className="h-4 w-16 bg-secondary/30 rounded" />
+            <div className="h-5 w-32 bg-secondary/30 rounded" />
+          </div>
+
+          {/* Nature/IV skeleton */}
+          <div className="p-4 border border-primary/30 rounded-lg bg-primary/5 space-y-4">
+            <div className="h-4 w-40 bg-secondary/30 rounded" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-9 bg-secondary/30 rounded" />
+              <div className="h-9 bg-secondary/30 rounded" />
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="h-3 w-6 bg-secondary/30 rounded mx-auto" />
+                  <div className="h-7 bg-secondary/30 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Abilities skeleton */}
+          <div className="space-y-3">
+            <div className="h-4 w-20 bg-secondary/30 rounded" />
+            <div className="flex gap-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-6 w-20 bg-secondary/30 rounded-full" />
+              ))}
+            </div>
+          </div>
+
+          {/* Info columns skeleton */}
+          <div className="grid grid-cols-2 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="space-y-1">
+                <div className="h-3 w-12 bg-secondary/30 rounded" />
+                <div className="h-4 w-20 bg-secondary/30 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Moves skeleton */}
+          <div className="space-y-3 pt-8 border-t border-border">
+            <div className="h-5 w-32 bg-secondary/30 rounded mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex justify-between items-center p-2 rounded border border-border/50">
+                  <div className="h-4 w-28 bg-secondary/30 rounded" />
+                  <div className="h-5 w-12 bg-secondary/30 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -139,6 +217,7 @@ export default function PokemonDetailPage() {
   }
 
   const speciesId = pokemon.id
+  const speciesCaptures = capturedPokemon.filter(p => p.speciesId === speciesId)
   const type1Color = TYPE_COLORS[pokemon.type1]
   const type2Color = pokemon.type2 ? TYPE_COLORS[pokemon.type2] : null
   const natureEffect = NATURE_EFFECTS[selectedNature]
@@ -146,6 +225,7 @@ export default function PokemonDetailPage() {
   const isShinyCaught = shinySpecies.includes(speciesId)
   const isAlphaCaught = alphaSpecies.includes(speciesId)
   const isMegaCaught = megaSpecies.includes(speciesId)
+  const isFavorite = favoriteSpecies.includes(speciesId)
   const isArceus = currentGame === 'arceus'
 
   const handleToggleCaught = () => {
@@ -318,16 +398,24 @@ export default function PokemonDetailPage() {
                 <span className="text-sm">💎 Mega{!isCaught && ' (mark as caught first)'}</span>
               </label>
             )}
+
+            {/* Favorite (always available) */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={isFavorite}
+                onCheckedChange={() => toggleFavorite(speciesId)}
+              />
+              <span className="text-sm">★ Favorite</span>
+            </label>
           </div>
 
           {/* Show variant badges when caught */}
-          {isCaught && (
-            <div className="flex gap-2 mt-3">
-              {isShinyCaught && <Badge variant="outline" className="text-yellow-500 border-yellow-500">✨ Shiny</Badge>}
-              {isAlphaCaught && <Badge variant="outline" className="text-orange-500 border-orange-500">🔆 Alpha</Badge>}
-              {isMegaCaught && <Badge variant="outline" className="text-purple-500 border-purple-500">💎 Mega</Badge>}
-            </div>
-          )}
+          <div className="flex gap-2 mt-3 flex-wrap">
+            {isShinyCaught && <Badge variant="outline" className="text-yellow-500 border-yellow-500">✨ Shiny</Badge>}
+            {isAlphaCaught && <Badge variant="outline" className="text-orange-500 border-orange-500">🔆 Alpha</Badge>}
+            {isMegaCaught && <Badge variant="outline" className="text-purple-500 border-purple-500">💎 Mega</Badge>}
+            {isFavorite && <Badge variant="outline" className="text-amber-500 border-amber-500">★ Favorite</Badge>}
+          </div>
         </div>
 
         {/* Your Captures */}
